@@ -6,7 +6,9 @@ Architectural research project: a water-informed, productive urban landscape for
 
 The site is published from the repository's `index.html` through GitHub Pages:
 
-https://haowang310.github.io/london-2100-productive-city/
+https://haowang310.github.io/Special-Parcel-Test/
+
+> The repository was renamed from `london-2100-productive-city` to `Special-Parcel-Test`, so the previous Pages URL (`…/london-2100-productive-city/`) no longer works — GitHub does not redirect Pages sites after a rename.
 
 Current presentation: **FORM / ASSEMBLY — GitHub Pages public default Rhino source**. All visitors load the same repository model file `2.3dm` when present and valid. The original embedded 24-parcel / 58-Form model is retained as a fallback only.
 
