@@ -52,7 +52,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
  function outline(x,y){if(custom){let inside=false,d=1e3;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){let [a,b]=polygon[i],[c,e]=polygon[j],u=c-a,v=e-b,t=clamp(((x-a)*u+(y-b)*v)/(u*u+v*v||1),0,1);d=min(d,hypot(x-a-t*u,y-b-t*v));if((b>y)!=(e>y)&&x<(c-a)*(y-b)/(e-b)+a)inside=!inside}return inside?-d:d}
  if(p.bound==='Circle')return hypot(x,y)-12;let a=abs(x)-(p.bound==='Rectangle'?13.8:11.5),b=abs(y)-(p.bound==='Rectangle'?8.5:11.5);return hypot(max(a,0),max(b,0))+min(max(a,b),0)-.45}
  let R=custom?max(...polygon.flat().map(abs))+5:18;
- const shift=z=>[p.shift*2.7*sin(z*.12+p.seed),p.shift*2.2*cos(z*.086+p.seed)];
+ const shift=z=>[p.shift*(p.type===2?4.1:2.7)*sin(z*.12+p.seed),p.shift*(p.type===2?3.5:2.2)*cos(z*.086+p.seed)];
  const helix=p.route!=='Branch',annular=(x,y,z)=>{let a=(Math.atan2(y,x)+tau)%tau,lev=z/p.h-a/tau;return (lev-Math.floor(lev))*p.h};
  const bay=k=>[6.7*cos(p.seed+.65*k),6.7*sin(p.seed+.65*k)], duplex=k=>k>=1&&k+1<p.floors&&k%4===1;
  function duplexSlot(x,y,k){if(!duplex(k))return -99;let [a,b]=bay(k);return min(1.0-abs(x-a),2.15-abs(y-b))}
@@ -65,20 +65,24 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
  v+=genes[id](X,Y,Z)*w;sum+=w;th+=g.thick*w}return [v/sum,th/sum]}
  function route(x,y,z){let corridor=abs(y)<1.08&&abs(x)<9.4;if(p.route!=='Branch')corridor||=abs(hypot(x,y)-5.4)<1.0;
  if(p.route!=='Spiral')corridor||=abs(x)<1.08&&abs(y)<9.4;return corridor}
+ function atrium(x,y,z){if(p.type!==1&&p.type!==2)return -100;let wave=.5+.5*cos(z*(p.type===1?.109:.17)+p.seed);
+ let r=p.type===1?3.8+4.2*wave:1.8+3.8*wave;return r-hypot(x-(6.2+1.7*sin(z*.06)),y+7.2+1.5*cos(z*.07))}
  function shell(x,y,z){let [dx,dy]=shift(z),bound=outline(x-dx*.65,y-dy*.65)+1.35;
  if(bound>1.6||z<-.1||z>H+.1)return max(bound,-z,z-H,.1);
  let [v,th]=signal(x,y,z),level=z/p.h,fl=abs(cos(PI*level))**6,grad=p.grad*cos(tau*z/H+.5);
  let f=abs(v)*5.6-(.48+.55*th+fl*.61+grad*.22)*(1.12-.32*p.hole);
  // Swept central reservation and clear cross-corridors; vertical aperture fades at slab soffits.
  // Flared load-path candidates merge with the selected field inside its perimeter.
- let stem=100;for(let j=0;j<3;j++){let a=j*tau/3+z*.016+.24*sin(z*.059+j)+p.seed,rad=6.8+.85*sin(z*.1+j);
- let radius=(p.type===3?1.1:.72)+fl*(p.type===3?1.7:1.10)+.25*v;
+ let stem=100,domain=100;for(let j=0;j<3;j++){let a=j*tau/3+z*.016+.24*sin(z*.059+j)+p.seed,rad=(p.type===3?8.5:7.4)+.65*sin(z*.1+j);
+ let lateral=hypot(x-rad*cos(a),y-rad*sin(a));
+ domain=min(domain,lateral-(p.type===3?3.15:p.type===1?4.3:7.2)-fl*(p.type===3?2.9:1.35));
+ let radius=(p.type===3?1.20:.72)+fl*(p.type===3?2.10:1.10)+.25*v;
  stem=min(stem,hypot(x-rad*cos(a),y-rad*sin(a))-radius)}
- let blend=max(0,1.1-abs(f-stem));f=min(f,stem)-blend*blend/4.4;
+ if(p.blend==="Local")f=max(f,domain);let blend=max(0,1.1-abs(f-stem));f=min(f,stem)-blend*blend/4.4;
  let core=min(3.1-abs(x),3.25-abs(y));
  let clear=route(x,y,z)?min((z%p.h)-.06,2.65-(z%p.h)):-1;
  let k=Math.floor(z/p.h);let ds=max(duplexSlot(x,y,k),duplexSlot(x,y,k-1));if(helix&&abs(hypot(x,y)-5.4)<1.12){let e=annular(x,y,z);clear=max(clear,min(e,2.5-e))}
- return max(f,bound,core,clear,ds,-z,z-H)}
+ return max(f,bound,core,clear,ds,atrium(x,y,z),-z,z-H)}
  const res=p.quality==='Fine'?43:p.quality==='Preview'?23:33;
  iso('shell',res,res,Math.ceil(p.floors*(p.quality==='Fine'?5:3.8))+2,[-R,-R,-.35],[R,R,H+.35],shell);
  // Remove small isolated shell islands unless they span a storey and contact a slab elevation.
@@ -90,7 +94,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
  function slabField(x,y,k){let z=k*p.h,[dx,dy]=shift(z),b=outline(x-dx,y-dy);if(k>0&&k<p.floors){let shaft=min(2.4-abs(x),2.18-abs(y));if(shaft>-.8)return max(b,shaft)}if(k>0&&k<p.floors){b=max(b,duplexSlot(x,y,k-1));if(helix&&abs(y)>1.3&&abs(x)>1.3){let r=hypot(x,y),a=(Math.atan2(y,x)+tau)%tau;b=max(b,min(.94-abs(r-5.4),min(a-.1,5.95-a)*5.4))}}if(b>1||k===0||k===p.floors)return b;
  let ax=5.2*sin(z*.044+p.seed)+2.6,ay=4.2*cos(z*.052),r=(1-p.keep)*(9+3*sin(z*.07)*p.grad);
  let hole=r-hypot((x-ax)*.95,y-ay);if(max(abs(x),abs(y))<3.6||route(x,y,z))hole=-1;
- return max(b,hole)}
+ let porch=atrium(x,y,z);if(route(x,y,z)||max(abs(x),abs(y))<3.5)porch=-1;return max(b,hole,porch)}
  const split=(x,k)=>p.type===2&&k>0&&k<p.floors&&x>4?p.shift*.88:0;
  function slab(k){const m=mesh('slabs'),start=m.pos.length/3,verts=new Map(),edges=new Map();
  function vert(pt){let key=pt.map(q=>Math.round(q*1e5)).join(',');if(verts.has(key))return verts.get(key);let i=m.pos.length/3;verts.set(key,i);let z=k*p.h+split(pt[0],k);m.pos.push(...pt,z-.25,...pt,z);return i}
@@ -124,7 +128,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
  for(let id of region){let l=zoneIds.get(id);if(l!==1&&l!==3)continue;let [x,y]=xy(id);for(let j of [id+1,id+n])if(zoneIds.has(j)&&zoneIds.get(j)!==l&&hypot(x-anchors[l][0],y-anchors[l][1])>1.9){let east=j===id+1,base=z+split(x,k);box('partitions',x+(east?cell/2:0),y+(east?0:cell/2),base,east?.08:cell,east?cell:.08,l===3?2.18:1.9)}}
  rooms.push({k,zones,firstVolumeFace,endVolumeFace:mesh(type).idx.length,x:mid[0],y:mid[1],z:z+split(mid[0],k),area:region.length*cell*cell,vol,type});freeVolume+=vol;
  const safe=(x,y,w,d,h)=>[-1,1].every(i=>[-1,1].every(j=>{let a=x+i*w/2,b=y+j*d/2;return slabField(a,b,k)<0&&shell(a,b,z+split(x,k)+h)>.2&&shell(a,b,z+split(x,k)+.3)>.2}));
- let placed=[];for(let [u,pt] of pts.entries()){let [x,y]=pt,base=z+split(x,k);if(placed.some(t=>hypot(t[0]-x,t[1]-y)<2.65))continue;let h=zoneIds.get(region[u]);if(h===4&&placed.length>2)continue;
+ let placed=[],equipped=new Set();for(let [u,pt] of pts.entries()){let [x,y]=pt,base=z+split(x,k);if(placed.some(t=>hypot(t[0]-x,t[1]-y)<2.65))continue;let h=zoneIds.get(region[u]);if(equipped.has(h))continue;
  if(shared){if(h||!safe(x,y,1,1,1.3))continue;box('garden',x,y,base,.7,.7,.45);box('leaves',x,y,base+.45,.92,.9,.86)}
  else{if(h>4||!safe(x,y,1.8,1,.95))continue;
  if(h===0){box('furniture',x,y,base,1.8,.78,.38);box('wood',x,y+.31,base+.38,1.8,.16,.4)}
@@ -132,7 +136,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
  if(h===2)box('wood',x,y,base,1.6,.55,.88);
  if(h===3)box('furniture',x,y,base,.62,.65,.43);
  if(h===4){box('people',x,y,base,.32,.22,1.4);box('people',x,y,base+1.4,.20,.20,.25)}}
- placed.push(pt)}
+ placed.push(pt);equipped.add(h)}
  }}
  for(let k=1;k<p.floors-1;k++){if(!duplex(k))continue;let [x,y]=bay(k),low=rooms.filter(r=>r.k===k&&r.type==='units'),high=rooms.filter(r=>r.k===k+1&&r.type==='units');let nearest=(rs,ey)=>rs.sort((a,b)=>hypot(a.x-x,a.y-ey)-hypot(b.x-x,b.y-ey))[0],a=nearest(low,y-2.35),b=nearest(high,y+2.35);if(!a||!b||hypot(a.x-x,a.y-y+2.35)>5||hypot(b.x-x,b.y-y-2.35)>5||slabField(x,y-2.3,k)>0||slabField(x,y+2.3,k+1)>0)continue;
  for(let j=0;j<18;j++)box('traffic',x,y-2.05+j*.24,k*p.h+j*p.h/18,1.05,.26,.13);a.special=b.special=true;a.mate=rooms.indexOf(b);b.mate=rooms.indexOf(a)}
@@ -159,7 +163,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 const $=id=>document.getElementById(id),names=['Catenoid','Gyroid','Schwarz P','Schwarz D','Scherk','Helicoid','Neovius','Lidinoid','I-WP'],types=['Dense','Void','Terrace','Continuous'],typeGenes=[[1,3,0],[2,0],[4,1],[0,3]];
 const ranges=[['floors','建筑层数|Storeys',4,40,1],['complex','曲面复杂度|Complexity',0,1,.01],['hole','孔洞尺度|Aperture scale',0,1,.01],['keep','楼板保留比例|Slab retention',0,1,.01],['shift','楼层错位程度|Plate displacement',0,1,.01],['grad','垂直差异化程度|Vertical gradient',0,1,.01]];
 function preset(i){let a=[[.72,.36,.86,.21,.6],[.24,.94,.31,.15,.8],[.44,.65,.52,.97,.85],[.33,.58,.78,.19,.52]][i];return {type:i,active:[...typeGenes[i]],g:names.map((_,j)=>({scale:j===0?1.35:1,weight:1,rot:[0,0,0],phase:j*.15,range:.9,thick:.9})),floors:28,h:3.6,complex:a[0],hole:a[1],keep:a[2],shift:a[3],grad:a[4],quality:'Standard',bound:'Square',blend:'Local',route:'Mixed',seed:.24,poly:[[-10,-9],[8,-10],[12,0],[7,11],[-11,8]]}}
-let p=preset(0),en=false,multi=false,editing=1,worker=null,serial=0,previous=null,current=null,data=null,demo=1,playing=false,wait=0,duration=30,speed=1,delay=0,auto=true,stage='Tower',floor=0,unit=0,mode='Full',cam='Axon',cuts=[1,1,1],yaw=-.92,pitch=.215,zoom=1,panX=0,panZ=0,frame=0,cpu=false,busy=false;
+let p=preset(0),en=false,multi=false,editing=1,worker=null,serial=0,previous=null,current=null,data=null,demo=1,playing=false,wait=0,duration=30,speed=1,delay=0,auto=true,stage='Tower',floor=0,unit=0,mode='Full',cam='Axon',cuts=[1,1,1],yaw=-.92,pitch=.145,zoom=1,panX=0,panZ=0,frame=0,cpu=false,busy=false;
 const tr=s=>s.split('|')[en?1:0]??s,clone=x=>JSON.parse(JSON.stringify(x)),fmt=n=>n.toLocaleString(en?'en-GB':'zh-CN');
 const modes=[['Full','完整建筑|Full assembly'],['Section','内部剖视|Interior cutaway'],['Shell','纯极小曲面|Surface shell'],['Slabs','水平楼板|Floor plates'],['Structure','结构分析|Structure'],['Traffic','交通网络|Circulation'],['Volume','住宅空间体积|Spatial volumes'],['Exploded','爆炸分析|Exploded'],['XYZ','XYZ 自由剖切|XYZ section']];
 const cameras=[['Axon','轴测|Axonometric'],['Front','正视|Front'],['Side','侧视|Side'],['Top','顶视|Top']];
@@ -236,7 +240,7 @@ function display(){cancelAnimationFrame(frame);frame=requestAnimationFrame(rende
 function render(){if(!data)return;let {w,h,ex}=layout();$('viewport').hidden=cpu;$('fallback').hidden=!cpu;for(let o of assembly.children){let n=o.name;o.visible=visible(n)&&demo>=phases[n][0];o.userData.uniform.value=ex;let ps=planes(clipping(n,ex));if(ps.length!==o.material.clippingPlanes?.length)o.material.needsUpdate=true;o.material.clippingPlanes=ps;o.material.color.setHex(mode==='Structure'&&n==='shell'?0xb7d1c4:palette[n])}
  for(let o of helpers.children){let ground=o.name==='ground';o.visible=ground?stage==='Tower':demo<.55;o.material.opacity=ground?.48:o.name==='bounds'?.25*(1-norm(demo,.12,.5)):norm(demo,.045,.17)*(1-norm(demo,.3,.55));if(o.name==='particles'){let arr=o.geometry.attributes.position,pts=helpers.userData.actual,t=(demo*9)%1;pts.forEach((a,i)=>{let b=pts[Math.min(i+6,pts.length-1)];arr.setXYZ(i,...a.map((v,j)=>v+(b[j]-v)*t))});arr.needsUpdate=true}}
  if(cpu)cpuDraw(w,h,ex);else{renderer.setSize(w,h,false);renderer.render(scene,camera)}playLabel();$('time').value=Math.round(demo*1000)}
-function setCam(v){cam=v;[yaw,pitch]=({Axon:[-.92,.215],Front:[-Math.PI/2,.0001],Side:[0,.0001],Top:[-Math.PI/2,Math.PI/2-.00001]})[v];panX=panZ=0;display()}
+function setCam(v){cam=v;[yaw,pitch]=({Axon:[-.92,.145],Front:[-Math.PI/2,.0001],Side:[0,.0001],Top:[-Math.PI/2,Math.PI/2-.00001]})[v];panX=panZ=0;display()}
 function stats(){if(!data)return;let m=data.metrics,rows=Object.entries(m).map(([key,v])=>key+'  '+[v.bare,v.non,v.deg,v.flip,v.connected].join(' / '));$('audit').textContent=tr('裸边 / 非流形边 / 退化面 / 绕序冲突 / 连通域|Open / nonmanifold / degenerate / winding / components')+'\n'+rows.join('\n')+'\n\n'+tr('可达楼面采样|Reachable floor samples')+' '+data.reached+' / '+data.usable+'\n'+tr('住宅及共享空间估算|Sampled program volume')+' '+fmt(Math.round(data.freeVolume))+' m³'+'\n'+tr('XYZ 空腔连通域|XYZ air components')+' '+data.cavities+'\n'+tr('最大空腔|Largest cavity')+' '+fmt(Math.round(data.largest))+' m³'+'\n'+tr('曲面跨越楼板标高|Slab elevations intersected')+' '+data.supportBands+' / '+(p.floors+1)+'\n'+tr('交通净空命中壳体|Route clearance overlaps')+' '+data.collisions+' / '+data.samples;$('stats').innerHTML='<b>'+p.floors+'</b> '+tr('层|LEVELS')+'　/　<b>'+data.H.toFixed(1)+'</b> M　/　<b>'+fmt(data.rooms.length)+'</b> '+tr('空间分区|SPACE REGIONS');}
 let lastgood=null;
 function generate(){let seq=++serial;busy=true;if(worker){worker.terminate();worker=null}ui();notice(tr('正在计算三维场…|Computing volume…'));let proposed=clone(p);
